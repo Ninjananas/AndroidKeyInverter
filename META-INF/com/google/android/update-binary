@@ -1,0 +1,88 @@
+#!/sbin/sh
+
+# MIT License
+#
+# Copyright (c) 2022 Ninjananas
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+
+OUT_FD="$2"
+
+ui_print() {
+    echo -n -e "ui_print $@\n" > /proc/self/fd/$OUT_FD
+}
+
+
+invert_back_app_switch() {
+    sed -i 's/\bBACK\b/__TMP__/' $1
+    sed -i 's/\bAPP_SWITCH\b/BACK/' $1
+    sed -i 's/\b__TMP__\b/APP_SWITCH/' $1
+}
+
+ui_print "********************"
+ui_print "*** Key Inverter ***"
+ui_print "********************"
+
+
+# Try to mount /system or /system_root
+system_path="/system"
+mounted="/system"
+mount $mounted
+if [ "$?" -ne "0" ]; then
+    ui_print "Could not mount /system, trying /system_root"
+    system_path="/system_root/system"
+    mounted="/system_root"
+    mount $mounted
+    if [ "$?" -ne "0" ]; then
+	ui_print "Could not mount /system not /system_root, exiting..."
+	exit 1
+    fi
+fi
+
+
+script_exit() {
+    umount $mounted
+    exit $@
+}
+
+
+# On tested devices, only the key-mapping file contains "VIRTUAL".
+kl_file=`grep -l VIRTUAL $system_path/usr/keylayout/*`
+n_kl_files=$(echo $kl_file | wc -w)
+
+# Check if a suitable file is found
+if [ "$n_kl_files" -eq "0" ]; then
+    ui_print 'No suitable .kl file was found, cannot invert keys...'
+    script_exit 1
+# Check if only one suitable file is found
+elif [ "$n_kl_files" -ne "1" ]; then
+    ui_print 'Too many .kl files were found, cannot invert keys...'
+    ui_print "Found: $kl_file"
+    script_exit 1
+fi
+
+# Invert BACK and APP_SWITCH keys
+ui_print "Inverting BACK and APP_SWITCH keys in the following file:"
+ui_print "$kl_file"
+invert_back_app_switch "$kl_file"
+ui_print "Done!"
+
+
+script_exit 0
